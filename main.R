@@ -4,7 +4,7 @@ require(pacman)
 p_load(pacman,tidyverse,MASS,evd,sampleSelection)
 
 # initialize some parameters
-n <- 1000
+n <- 10000
 m <- 500
 
 # utility function for RUM
@@ -18,12 +18,12 @@ results <- data.frame(unbiased1=rep(NA,m),unbiased2=NA,uncorrected1=NA,uncorrect
 
 for (i in 1:m) {
 
-truebeta <- c(3,9,-6)
+truebeta <- c(1,3,-2)
 
-vcov <- matrix(c( 1, 0,0,.5,
-                  0,1, 0,.5,
-                  0, 0,1,.2,
-                 .5,.5,.2,1),nrow=4,ncol=4,byrow=T)
+vcov <- matrix(c( 1, 0,0,-.4,
+                  0,1, 0,-.5,
+                 0, 0,1,.2,
+                 -.4,-.5,.2,1),nrow=4,ncol=4,byrow=T)
 
 
 subjects <- mvrnorm(n=n,mu=c(truebeta,0),Sigma=vcov) %>% as.data.frame()
@@ -41,7 +41,7 @@ dat$best <- ifelse(dat$utility > 0, 1, 0)
 dat$select <- ifelse(dat$z > 0,1,0)
 dat$z2 <- dat$z + rnorm(n,0,.5)
 
-stage1 <- glm(select ~ z2,data=dat, binomial(link = "probit"))
+stage1 <- glm(select ~ z2,data=dat, family = "binomial")
 
 summary(stage1)
 
