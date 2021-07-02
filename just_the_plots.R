@@ -9,6 +9,7 @@ gridsearch2 <- readRDS("sim_results_with_causality.rds")
 # "bias_remain" of 1 indicates no improvement over uncorrected estimate
 # 0 indicates bias completely removed
 # >1 indicates "correction" introduced additional bias
+# purple good, yellow bad
 
 ##################################################
 ### assumes x plays no causal role in selection ##
