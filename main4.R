@@ -26,7 +26,7 @@ sim2 <- function(covs) {
   n <- 1000
   m <- 100
   truebeta <- c(4,-8,0,0)
-  vcov <- matrix(c(     1, 0,.5,cov1,
+  vcov <- matrix(c(     1, 0, .5,cov1,
                         NA, 1,.5,cov2,
                         NA,NA, 1,covz,
                         NA,NA,NA, 1),nrow=4,ncol=4,byrow=T)
@@ -127,20 +127,24 @@ gridsearch <- expand.grid(cov1=seq(-1,1,by=.1),cov2=seq(-1,1,by=.1),covz=seq(-1,
   
 }
 
-bigresults <- apply(gridsearch,1,sim3) %>% t() %>% as.data.frame()
+system.time({
+  bigresults <- apply(gridsearch,1,sim3) %>% t() %>% as.data.frame()
+})
+
+
 
 gridsearch <- cbind(gridsearch,bigresults)
 
 gridsearch$bias_remain <- abs(.5-gridsearch$V2)/abs(.5-gridsearch$V1)
 
-gridsearch$bias_remain_truncated <- ifelse(gridsearch$bias_remain >= 2,2,gridsearch$bias_remain)
+gridsearch$bias_remain_truncated <- ifelse(gridsearch$bias_remain >= 3,3,gridsearch$bias_remain)
 
 gridsearch$improve <- ifelse(gridsearch$bias_remain>=1,"Worse","Better")
-#saveRDS(gridsearch, file = "sim_results_no_causality.rds")
+#saveRDS(gridsearch, file = "sim_results_no_causality_0_neg0.5.rds")
 
 ###### plot results #####
 
-gridsearch <- readRDS("sim_results_no_causality.rds")
+#gridsearch <- readRDS("sim_results_no_causality.rds")
 #gridsearch <- gridsearch %>% dplyr::filter(bias_remain <= 1)
 
 fig <- plot_ly(gridsearch, x = ~cov1, y = ~cov2, z = ~covz,color=~bias_remain_truncated)
