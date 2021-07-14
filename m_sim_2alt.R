@@ -3,9 +3,9 @@ p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,doParallel,tictoc,patch
 
 set.seed(301)
 
-n <- 10000 # choices (1 choice per person)
+n <- 100000 # choices (1 choice per person)
 
-J <- 2 # alternatives per choice
+J <- 3 # alternatives per choice
 
 # set up data
 df <- data.frame(alt = rep(1:J,n),                  # alternative index
