@@ -8,14 +8,14 @@ df <- data.frame(id=1:n,
                  cost=rnorm(n),
                  eps2=rlogis(n))
 
-a0 = 1
-a1 = 3
-a2 = 2
+a0 = 0
+a1 = 2
+a2 = 3
 
-b0 = 0
+b0 = 1
 b1 = 4
 b2 = -2
-bm = -5
+bm = -2
 
 df$u <- a0 + a1*df$w + a2*df$m + df$eps
 
@@ -24,9 +24,7 @@ head(df)
 
 summary(a <- glm(y ~ w,data=df,family="binomial"))
 
-df$pred <- predict(a)
 df$fitted <- a$fitted.values
-df$resid <- a$residuals
 
 df$mguess <- qnorm(0.5*(df$y-df$fitted)+0.5)
 
@@ -36,7 +34,7 @@ df$y2 <- ifelse(df$u2>0,1,0)
 summary(wrong <- glm(y2 ~ x + cost, data=df[which(df$y==1),],family="binomial"))
 
 summary(better <- glm(y2 ~ x*mguess + cost,data=df[which(df$y==1),],family="binomial"))
-summary(everyone <- glm(y2 ~ x + cost,data=df[sample(sum(df$y)),],family="binomial"))
+summary(everyone <- glm(y2 ~ x + cost,data=df,family="binomial"))
 
 -1*wrong$coefficients[["x"]]/wrong$coefficients[["cost"]]
 -1*better$coefficients[["x"]]/better$coefficients[["cost"]]
