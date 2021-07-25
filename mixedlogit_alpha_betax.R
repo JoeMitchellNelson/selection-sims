@@ -3,7 +3,7 @@ p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,
        doParallel,tictoc,patchwork,matrixcalc,survival,plotly,apollo)
 
 
-for (i in 1:10) {
+for (i in 1:100) {
   
   ### Clear memory
   
@@ -232,7 +232,7 @@ for (i in 1:10) {
   
   model = apollo_estimate(apollo_beta, apollo_fixed,
                           apollo_probabilities, apollo_inputs, 
-                          estimate_settings=list(hessianRoutine="maxLik"))
+                          estimate_settings=list(hessianRoutine="maxLik",silent=T))
   cat(paste0("full sample WTP is ",round(-1*cor$coefficients[["x3"]]/cor$coefficients[["cost3"]],3)))
   cat(paste0("\nuncorrected WTP is ",round(-1*uncor$coefficients[["x3"]]/uncor$coefficients[["cost3"]],3)))
   cat(paste0("\ncorrected WTP is ",round(-1*model$estimate[["mu_x"]]/model$estimate[["b_cost"]],3)))
@@ -268,15 +268,26 @@ for (i in 1:10) {
   
   cat(paste0("\n\n\n\t\t\t",i,"\n\n\n"))
   
-  if (i %% 10 == 0) {cat(mean(res$mu_x))}
+  cat(paste0(mean(res$mu_x[res$maxEigen<0],na.rm=T)),"\n\n")
   
 }
+
+ggplot(res[res$maxEigen<0,]) +
+  geom_density(aes(x=mu_x),fill="blue",alpha=0.5,color=NA) +
+  geom_density(aes(x=uncorrected_wtp),fill="red",alpha=0.5,color=NA) +
+  geom_vline(xintercept=2) +
+  geom_vline(xintercept=mean(res$mu_x[res$maxEigen<0],na.rm=T),color="blue",linetype="dashed") +
+  geom_vline(xintercept=mean(res$uncorrected_wtp[res$maxEigen<0],na.rm=T),color="red",linetype="dashed")
+
+(sum(res$mu_x[res$maxEigen<0] + 1.96*res$mu_x_se[res$maxEigen<0] < 2,na.rm=T) + 
+    sum(res$mu_x[res$maxEigen<0] - 1.96*res$mu_x_se[res$maxEigen<0] > 2,na.rm=T))/sum(res$message[res$maxEigen<0],na.rm=T)
 
 ggplot(res) +
   geom_density(aes(x=mu_x),fill="blue",alpha=0.5,color=NA) +
   geom_density(aes(x=uncorrected_wtp),fill="red",alpha=0.5,color=NA) +
-  geom_vline(xintercept=mean(res$mu_x),color="blue",linetype="dashed") +
-  geom_vline(xintercept=mean(res$uncorrected_wtp),color="red",linetype="dashed") +
-  geom_vline(xintercept=2)
+  geom_vline(xintercept=2) +
+  geom_vline(xintercept=mean(res$mu_x,na.rm=T),color="blue",linetype="dashed") +
+  geom_vline(xintercept=mean(res$uncorrected_wtp,na.rm=T),color="red",linetype="dashed")
 
-sum(res$mu_x + 1.96*res$mu_x_se < 2,na.rm=T) + sum(res$mu_x - 1.96*res$mu_x_se > 2,na.rm=T)
+#write.csv(res,"~/selection-sims/sim_results.csv")
+a <- read.csv("~/selection-sims/sim_results.csv")
