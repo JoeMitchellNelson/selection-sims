@@ -3,7 +3,15 @@ p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,
        doParallel,tictoc,patchwork,matrixcalc,survival,plotly,apollo)
 
 
-for (i in 1:100) {
+res <- matrix(data=NA,nrow=100,ncol=24) %>% as.data.frame()
+
+names(res2) <- c("seed","LL","message",
+                names(model$estimate),
+                paste0(names(model$robse),"_se"),
+                "maxEigen","uncorrected_wtp","fullsample_wtp")
+
+
+for (i in 113:200) {
   
   ### Clear memory
   
@@ -120,13 +128,13 @@ for (i in 1:100) {
   # ################################################################# #
   
   ### Vector of parameters, including any that are kept fixed in estimation
-  apollo_beta=c(b_w = 1,
-                mu_x = 1,
-                sigma_x = 1,
+  apollo_beta=c(b_w = 2,
+                mu_x = 2,
+                sigma_beta = 1,
                 b_cost = -1,
                 mu_alpha = 0,
                 sigma_alpha = 1,
-                sigma_x_alpha = 1,
+                rho = .7,
                 scale_RP = 1,
                 scale_SP = 2)
   
@@ -140,7 +148,7 @@ for (i in 1:100) {
   ### Set parameters for generating draws
   apollo_draws = list(
     interDrawsType = "halton",
-    interNDraws    = 501,
+    interNDraws    = 500,
     interUnifDraws = c(),
     interNormDraws = c("draws_alpha","draws_x"),
     intraDrawsType = "halton",
@@ -153,14 +161,10 @@ for (i in 1:100) {
   apollo_randCoeff = function(apollo_beta, apollo_inputs){
     randcoeff = list()
     
-    randcoeff[["alpha"]] = mu_alpha + sigma_alpha * draws_alpha + sigma_x_alpha * draws_x
-    randcoeff[["b_x"]] = mu_x + sigma_x * draws_x
     
-    # res <- mvrnorm(n=length(unique(database$ID)),mu=c(mu_x,mu_w),Sigma=matrix(c(1,.5,.5,1),byrow=T,nrow=2))
-    # 
-    # 
-    # randcoeff[["b_x"]] = res[1]
-    # randcoeff[["b_w"]] = res[2]
+    randcoeff[["alpha"]] = mu_alpha + sigma_alpha * draws_alpha
+    randcoeff[["b_x"]] = mu_x + sqrt(1-rho^2)*(sigma_beta) * draws_x + rho * sigma_beta * draws_alpha
+    
     
     return(randcoeff)
   }
@@ -232,7 +236,7 @@ for (i in 1:100) {
   
   model = apollo_estimate(apollo_beta, apollo_fixed,
                           apollo_probabilities, apollo_inputs, 
-                          estimate_settings=list(hessianRoutine="maxLik",silent=T))
+                          estimate_settings=list(hessianRoutine="numDeriv",silent=T))
   cat(paste0("full sample WTP is ",round(-1*cor$coefficients[["x3"]]/cor$coefficients[["cost3"]],3)))
   cat(paste0("\nuncorrected WTP is ",round(-1*uncor$coefficients[["x3"]]/uncor$coefficients[["cost3"]],3)))
   cat(paste0("\ncorrected WTP is ",round(-1*model$estimate[["mu_x"]]/model$estimate[["b_cost"]],3)))
@@ -250,27 +254,23 @@ for (i in 1:100) {
   
   #apollo_modelOutput(model)
   
+  res$seed[i] <- s
+  res$LL[i] <- model$maximum
+  res$message[i] <- ifelse(model$message=="successful convergence ",1,0)
+  res[i,4:12] <- model$estimate
+  res[i,13:21] <- model$robse
+  res$maxEigen[i] <- ifelse(!is.null(model$eigValue),model$eigValue,NA)
+  res$uncorrected_wtp[i] <- uwtp
+  res$fullsample_wtp[i] <- cwtp
 
-  res0 <- c(s,model$maximum,
-            ifelse(model$message=="successful convergence ",1,0),
-            model$estimate,model$robse,model$eigValue,uwtp,cwtp)
- 
-
-  res0
-  
-  # res <- as.data.frame(t(res0))
-  # names(res) <- c("seed","LL","message",
-  #                 names(model$estimate),
-  #                 paste0(names(model$robse),"_se"),
-  #                 "maxEigen","uncorrected_wtp","fullsample_wtp")
-  
-  res <- rbind(res,res0)
   
   cat(paste0("\n\n\n\t\t\t",i,"\n\n\n"))
   
-  cat(paste0(mean(res$mu_x[res$maxEigen<0],na.rm=T)),"\n\n")
+  cat(paste0(mean(-1*res$mu_x/res$b_cost,na.rm=T)),"\n\n")
   
 }
+
+res$maxEigen <- ifelse(res$maxEigen=="NULL",NA,as.numeric(as.character(res$maxEigen)))
 
 ggplot(res[res$maxEigen<0,]) +
   geom_density(aes(x=mu_x),fill="blue",alpha=0.5,color=NA) +
@@ -283,11 +283,14 @@ ggplot(res[res$maxEigen<0,]) +
     sum(res$mu_x[res$maxEigen<0] - 1.96*res$mu_x_se[res$maxEigen<0] > 2,na.rm=T))/sum(res$message[res$maxEigen<0],na.rm=T)
 
 ggplot(res) +
-  geom_density(aes(x=mu_x),fill="blue",alpha=0.5,color=NA) +
+  geom_density(aes(x=-1*mu_x/b_cost),fill="blue",alpha=0.5,color=NA) +
   geom_density(aes(x=uncorrected_wtp),fill="red",alpha=0.5,color=NA) +
   geom_vline(xintercept=2) +
-  geom_vline(xintercept=mean(res$mu_x,na.rm=T),color="blue",linetype="dashed") +
+  geom_vline(xintercept=mean(-1*res$mu_x/res$b_cost,na.rm=T),color="blue",linetype="dashed") +
   geom_vline(xintercept=mean(res$uncorrected_wtp,na.rm=T),color="red",linetype="dashed")
 
 #write.csv(res,"~/selection-sims/sim_results.csv")
-a <- read.csv("~/selection-sims/sim_results.csv")
+#a <- read.csv("~/selection-sims/sim_results.csv")
+
+ggplot(res) +
+  geom_point(aes(x=mu_x,y=rho))
