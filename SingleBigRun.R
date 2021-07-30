@@ -9,14 +9,19 @@ p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,
 
 rm(database)
 
+# parameters
+beta1 <- -2 # effect for cost (choice model)
+beta20 <- 4  # common component of effect for x
+beta21 <- 2  # m-component of effect for x
+beta22 <- 2 # heterogeneity, uncorrelated with response propensity
 
+alpha0 <- 0 # constant term, increase to boost the simulated response rate
+alpha1 <- 2 # coef for w in selection equation
+alpha2 <- 2 # coef for m in selection equation
 
 set.seed(123)
 
 n = 200000
-J <- 2 # not currently used
-
-# just do a mixed logit with correlated random component, 2 choices per person
 
 database <- data.frame(ID = rep(1:n,each=2),
                        choice=NA,
@@ -37,15 +42,7 @@ database$av_2 <- database$RP * 1
 database$av_3 <- database$SP * 1
 database$av_4 <- database$SP * 1
 
-# parameters
-beta1 <- -2 # effect for cost (choice model)
-beta20 <- 4  # common component of effect for x
-beta21 <- 2  # m-component of effect for x
-beta22 <- 2 # heterogeneity, uncorrelated with response propensity
 
-alpha0 <- 0 # constant term, increase to boost the simulated response rate
-alpha1 <- 2 # coef for w in selection equation
-alpha2 <- 2 # coef for m in selection equation
 
 database$U12 <-  alpha0 + alpha1*database$w1 + alpha2*database$m + database$epsRP
 database$U34 <- beta1*(database$cost3) + (beta20 + beta21*database$m + beta22*database$m2)*(database$x3) + database$epsSP
@@ -81,7 +78,7 @@ apollo_initialise()
 
 ### Set core controls
 apollo_control = list(
-  modelName ="First stab at selection correction",
+  modelName ="Selection correction",
   modelDescr ="Mixed logit model",
   indivID   ="ID",  
   mixing    = TRUE, 
