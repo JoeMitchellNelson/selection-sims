@@ -4,7 +4,7 @@ p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,doParallel,tictoc,patch
 ### Clear memory
 rm(list = ls())
 
-n = 10000
+n = 800
 J <- 2 # not currently used
 
 # just do a mixed logit with correlated random component, 2 choices per person
@@ -21,7 +21,7 @@ database <- data.frame(ID = rep(1:n,each=2),
                        cost4=0,
                        m = rep(rnorm(n),each=2),
                        epsRP = rep(rlogis(n,location=0,scale=1),each=2),
-                       epsSP = rep(rlogis(n,location=0,scale=1),each=2))
+                       epsSP = rep(rlogis(n,location=0,scale=2),each=2))
 database$av_1 <- database$RP * 1
 database$av_2 <- database$RP * 1
 database$av_3 <- database$SP * 1
@@ -39,7 +39,7 @@ alpha0 <- 1 # constant term, increase to boost the simulated response rate
 alpha1 <- 1 # coef for w in selection equation
 alpha2 <- 2 # coef for m in selection equation
 
-database$U12 <-  alpha0 + alpha1*database$w1 + alpha2*database$m + database$epsRP
+database$U12 <-  alpha0 + (alpha1)*database$w1 + alpha2*database$m  + database$epsRP
 database$U34 <- beta1*(database$cost3) + (beta20 + beta21*database$m)*(database$x3) + database$epsSP
                           
 
@@ -86,7 +86,7 @@ apollo_control = list(
   modelDescr ="Mixed logit model",
   indivID   ="ID",  
   mixing    = TRUE, 
-  nCores    = 2
+  nCores    = 15
 )
 
 # ################################################################# #
@@ -126,15 +126,9 @@ apollo_draws = list(
 apollo_randCoeff = function(apollo_beta, apollo_inputs){
   randcoeff = list()
   
-  randcoeff[["b_w"]] = mu_w + sigma_w * draws_w + sigma_x_w * draws_x
+ randcoeff[["b_w"]] = mu_w + sigma_w * draws_w + sigma_x_w * draws_x
   randcoeff[["b_x"]] = mu_x + sigma_x * draws_x
-  
- # res <- mvrnorm(n=length(unique(database$ID)),mu=c(mu_x,mu_w),Sigma=matrix(c(1,.5,.5,1),byrow=T,nrow=2))
-   # 
-   # 
-   # randcoeff[["b_x"]] = res[1]
-   # randcoeff[["b_w"]] = res[2]
-  
+
   return(randcoeff)
 }
 
@@ -165,15 +159,7 @@ apollo_probabilities=function(apollo_beta, apollo_inputs, functionality="estimat
   V[['alt3']] = b_x*x3  + b_cost*cost3
   V[['alt4']] = b_x*x4  + b_cost*cost4
 
-  ### Compute probabilities for the RP part of the data using MNL model
-  # mnl_settings = list(
-  #   alternatives  = c(car=1, bus=2, air=3, rail=4), 
-  #   avail         = list(car=av_car, bus=av_bus, air=av_air, rail=av_rail), 
-  #   choiceVar     = choice, 
-  #   V             = lapply(V, "*", mu_RP),
-  #   rows          = (RP==1),
-  #   componentName = "MNL-RP"
-  # )
+
   mnl_settings = list(
     alternatives  = c(alt1=1, alt2=2, alt3=3, alt4=4),
     avail         = list(alt1=av_1, alt2=av_2,alt3=av_3,alt4=av_4),
@@ -233,6 +219,8 @@ model = apollo_estimate(apollo_beta, apollo_fixed,
 # ----------------------------------------------------------------- #
 #---- FORMATTED OUTPUT (TO SCREEN)                               ----
 # ----------------------------------------------------------------- #
+
+summary(model)
 
 apollo_modelOutput(model)
 

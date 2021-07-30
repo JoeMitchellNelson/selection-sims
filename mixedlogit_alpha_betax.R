@@ -3,15 +3,15 @@ p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,
        doParallel,tictoc,patchwork,matrixcalc,survival,plotly,apollo)
 
 
-res <- matrix(data=NA,nrow=100,ncol=24) %>% as.data.frame()
+res <- matrix(data=NA,nrow=200,ncol=24) %>% as.data.frame()
 
-names(res2) <- c("seed","LL","message",
+names(res) <- c("seed","LL","message",
                 names(model$estimate),
                 paste0(names(model$robse),"_se"),
                 "maxEigen","uncorrected_wtp","fullsample_wtp")
 
 
-for (i in 113:200) {
+for (i in 1:200) {
   
   ### Clear memory
   
@@ -21,7 +21,7 @@ for (i in 113:200) {
   s <- Sys.time() %>% as.numeric()
   set.seed(s)
   
-  n = 2000
+  n = 35000
   J <- 2 # not currently used
   
   # just do a mixed logit with correlated random component, 2 choices per person
@@ -39,6 +39,7 @@ for (i in 113:200) {
                          x4=0,
                          cost4=0,
                          m = rep(rnorm(n),each=2),
+                         m2 = rep(rnorm(n),each=2),
                          epsRP = rep(rlogis(n,location=0,scale=1),each=2),
                          epsSP = rep(rlogis(n,location=0,scale=1),each=2))
   database$av_1 <- database$RP * 1
@@ -50,13 +51,14 @@ for (i in 113:200) {
   beta1 <- -2 # effect for cost (choice model)
   beta20 <- 4  # common component of effect for x
   beta21 <- 2  # m-component of effect for x
+  beta22 <- 2 # heterogeneity, uncorrelated with response propensity
   
   alpha0 <- 0 # constant term, increase to boost the simulated response rate
   alpha1 <- 2 # coef for w in selection equation
   alpha2 <- 2 # coef for m in selection equation
   
   database$U12 <-  alpha0 + alpha1*database$w1 + alpha2*database$m + database$epsRP
-  database$U34 <- beta1*(database$cost3) + (beta20 + beta21*database$m)*(database$x3) + database$epsSP
+  database$U34 <- beta1*(database$cost3) + (beta20 + beta21*database$m + beta22*database$m2)*(database$x3) + database$epsSP
   
   
   database$choice1 <- ifelse(database$RP==1 & database$U12 >= 0,1,
@@ -120,7 +122,7 @@ for (i in 113:200) {
     modelDescr ="Mixed logit model",
     indivID   ="ID",  
     mixing    = TRUE, 
-    nCores    = 12
+    nCores    = 15
   )
   
   # ################################################################# #
@@ -252,7 +254,7 @@ for (i in 113:200) {
   #---- FORMATTED OUTPUT (TO SCREEN)                               ----
   # ----------------------------------------------------------------- #
   
-  #apollo_modelOutput(model)
+  apollo_modelOutput(model)
   
   res$seed[i] <- s
   res$LL[i] <- model$maximum
@@ -267,6 +269,7 @@ for (i in 113:200) {
   cat(paste0("\n\n\n\t\t\t",i,"\n\n\n"))
   
   cat(paste0(mean(-1*res$mu_x/res$b_cost,na.rm=T)),"\n\n")
+  cat(paste0(mean(res$rho,na.rm=T)),"\n\n")
   
 }
 
@@ -293,4 +296,4 @@ ggplot(res) +
 #a <- read.csv("~/selection-sims/sim_results.csv")
 
 ggplot(res) +
-  geom_point(aes(x=mu_x,y=rho))
+  geom_point(aes(y=(mu_x-2)^2,x=rho))
