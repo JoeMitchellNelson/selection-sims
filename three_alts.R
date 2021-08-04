@@ -4,7 +4,7 @@ p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,boot,
 
 source("~/selection-sims/helper_funcs.R")
 
-n_sims <- 5
+n_sims <- 200
 
 res <- matrix(data=NA,nrow=n_sims,ncol=26) %>% as.data.frame()
 
@@ -120,7 +120,7 @@ for (i in 1:n_sims) {
     
     df2 <- left_join(df,df2,by=c("ID","respond"))
     summary(uncor <- clogit(choice ~ x + cost + strata(ID),data=df[df$respond==1,]))
-    summary(cor <- clogit(choice ~ x + cost + strata(ID),data=df2))
+    summary(cor <- clogit(choice ~ x*m + cost*m + strata(ID),data=df2))
     
     uncor1 <- mvrnorm(n=10000,mu=uncor$coefficients,Sigma=uncor$var) %>% as.data.frame()
     uncor_wtp <- mean(-1*uncor1$x/uncor1$cost)
@@ -159,7 +159,7 @@ for (i in 1:n_sims) {
     modelDescr ="Mixed logit model",
     indivID   ="ID",  
     mixing    = TRUE, 
-    nCores    = 2
+    nCores    = 12
   )
   
   # ################################################################# #
@@ -314,10 +314,10 @@ for (i in 1:n_sims) {
   
 }
 
-ggplot(res[res$maxEigen<0 & !is.na(res$mu_x_se),]) +
+ggplot(res) +
   geom_density(aes(x=fullsample_wtp),color="black",alpha=0.5) +
   geom_density(aes(x=mu_x),fill="forestgreen",color=NA,alpha=0.5) +
-  geom_vline(xintercept=mean(res$mu_x[res$maxEigen<0 & !is.na(res$mu_x_se)],na.rm=T),color="forestgreen",linetype="dashed") +
+  geom_vline(xintercept=mean(res$mu_x,na.rm=T),color="forestgreen",linetype="dashed") +
   geom_density(aes(x=uncorrected_wtp),fill="red",color=NA,alpha=0.5) +
   geom_density(aes(x=adhoc_wtp),fill="blue",color=NA,alpha=0.5) +
   labs(x="WTP Estimate",y="Density") +
