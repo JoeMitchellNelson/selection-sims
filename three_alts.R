@@ -1,17 +1,20 @@
 require(pacman)
-p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,
+p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,boot,
        doParallel,tictoc,patchwork,matrixcalc,survival,plotly,apollo)
 
+source("~/selection-sims/helper_funcs.R")
 
-res <- matrix(data=NA,nrow=200,ncol=25) %>% as.data.frame()
+n_sims <- 5
+
+res <- matrix(data=NA,nrow=n_sims,ncol=26) %>% as.data.frame()
 
 names(res) <- c("seed","LL","message",
                 "b_w",   "mu_x",  "sigma_beta",  "b_cost", "mu_alpha", "sigma_alpha",   "rho", "scale_RP", "scale_SP" ,
                 paste0(c("b_w",   "mu_x",  "sigma_beta",  "b_cost", "mu_alpha", "sigma_alpha",   "rho", "scale_RP", "scale_SP"),"_se"),
-                "maxEigen","uncorrected_wtp","fullsample_wtp","adhoc_wtp")
+                "maxEigen","uncorrected_wtp", "fullsample_wtp","adhoc_wtp","adhoc_wtp_se")
 
 
-for (i in 1:100) {
+for (i in 1:n_sims) {
   
   ### Clear memory
   
@@ -41,12 +44,14 @@ for (i in 1:100) {
                          x5=0,                                       # x = 0 for status quo
                          cost5=0,                                    # cost = 0 for status quo
                          m = rep(rnorm(n),each=2),                   # unobservable, affects participation and policy preference
-                         m2 = rep(rnorm(n),each=2),                  # unobservable, affects policy preference only
+                         #m2 = rep(rnorm(n),each=2),                  # unobservable, affects policy preference only
+                         m2 = 0,
                          nu1 = rep(rgumbel(n,loc=0,scale=1),each=2), #
                          nu2 = rep(rgumbel(n,loc=0,scale=1),each=2),   #
                          nu3 = rep(rgumbel(n,loc=0,scale=1),each=2),     # type 1 extreme value error terms, one for each alternative
                          nu4 = rep(rgumbel(n,loc=0,scale=1),each=2),   #
-                         nu5 = rep(rgumbel(n,loc=0,scale=1),each=2)  #
+                         nu5 = rep(rgumbel(n,loc=0,scale=1),each=2),  #
+                         noise = rep(rnorm(n),each=2)
   )
   
   # indicator variables for availability
@@ -92,7 +97,11 @@ for (i in 1:100) {
   ######################################################
   ### clogits for comparison ###
   ######################################################
-  {
+  
+  SPs <- database[database$SP==1,] %>% dplyr::select(-c(SP,RP,av_1,av_2,av_3,av_4,av_5,choice))
+  RPs <- database[database$RP==1,] %>% dplyr::select(-c(SP,RP,av_1,av_2,av_3,av_4,av_5,choice))
+  flatdb <- left_join(SPs,RPs) %>% as.data.frame()
+  
     df <- database %>% dplyr::filter(SP==1)
     df2 <- database %>% dplyr::filter(RP==1) %>% dplyr::select(ID,w1,m,respond)
     df2$noise <- rnorm(nrow(df2))
@@ -104,18 +113,32 @@ for (i in 1:100) {
     df$cost <- ifelse(df$alt==3,df$cost3,
                    ifelse(df$alt==4,df$cost4,df$cost5))
     df <- df %>% dplyr::select(ID,alt,choice,x,cost,respond)
-    summary(cor <- clogit(choice ~ x + cost + strata(ID),data=df))
-    summary(uncor <- clogit(choice ~ x + cost + strata(ID),data=df[df$respond==1,]))
     
-    adhoc1 <- glm(respond ~ I(m + noise),data=df2,family="binomial")
+    adhoc1 <- glm(respond ~ I(m+noise),data=df2,family="binomial")
     df2$fittedRP <- adhoc1$fitted.values
     df2$fittedRP <- df2$fittedRP - mean(df2$fittedRP)
     
     df2 <- left_join(df,df2,by=c("ID","respond"))
+    summary(uncor <- clogit(choice ~ x + cost + strata(ID),data=df[df$respond==1,]))
+    summary(cor <- clogit(choice ~ x + cost + strata(ID),data=df2))
     
-    summary(adhoc2 <- clogit(choice ~ x + cost + x:fittedRP + cost:fittedRP + strata(ID),data=df2[df2$respond==1,]))
+    uncor1 <- mvrnorm(n=10000,mu=uncor$coefficients,Sigma=uncor$var) %>% as.data.frame()
+    uncor_wtp <- mean(-1*uncor1$x/uncor1$cost)
     
-  }
+    cor1 <- mvrnorm(n=10000,mu=cor$coefficients,Sigma=cor$var) %>% as.data.frame()
+    cor_wtp <- mean(-1*cor1$x/cor1$cost)
+
+    
+   # summary(adhoc2 <- clogit(choice ~ x + cost + x:fittedRP + cost:fittedRP + strata(ID),data=df2[df2$respond==1,]))
+    
+    # bootstrapping with 1000 replications
+    results <- boot(data=flatdb, statistic=bs,
+                    R=500, formula=choice ~ x + cost + x:fittedRP + cost:fittedRP + strata(ID))
+    
+    # view results
+    bsres <- summary(results)
+    
+  
   
   # code to remove SP for nonresponders
   database$choice <- ifelse(database$SP==1 & database$respond==0,NA,database$choice)
@@ -136,7 +159,7 @@ for (i in 1:100) {
     modelDescr ="Mixed logit model",
     indivID   ="ID",  
     mixing    = TRUE, 
-    nCores    = 15
+    nCores    = 2
   )
   
   # ################################################################# #
@@ -257,14 +280,7 @@ for (i in 1:100) {
                           estimate_settings=list(hessianRoutine="numDeriv",silent=T))
   
   
-  uwtp <- -1*uncor$coefficients[["x"]]/uncor$coefficients[["cost"]]
-  cwtp <- -1*cor$coefficients[["x"]]/cor$coefficients[["cost"]]
-  ahwtp <- -1*adhoc2$coefficients[["x"]]/adhoc2$coefficients[["cost"]]
-  
-  cat(paste0("full sample WTP is ",round(-1*cor$coefficients[["x"]]/cor$coefficients[["cost"]],3)))
-  cat(paste0("\nuncorrected WTP is ",round(-1*uncor$coefficients[["x"]]/uncor$coefficients[["cost"]],3)))
-  cat(paste0("\nmixl corrected WTP is ",round(-1*model$estimate[["mu_x"]]/model$estimate[["b_cost"]],3)))
-  cat(paste0("\nad hoc corrected WTP is ",round(ahwtp,3)))
+
   
   # ################################################################# #
   #### MODEL OUTPUTS                                               ####
@@ -282,9 +298,10 @@ for (i in 1:100) {
   res[i,4:12] <- model$estimate
   res[i,13:21] <- model$robse
   res$maxEigen[i] <- ifelse(!is.null(model$eigValue),model$eigValue,NA)
-  res$uncorrected_wtp[i] <- uwtp
-  res$fullsample_wtp[i] <- cwtp
-  res$adhoc_wtp[i] <- ahwtp
+  res$uncorrected_wtp[i] <- uncor_wtp
+  res$fullsample_wtp[i] <- cor_wtp
+  res$adhoc_wtp[i] <- bsres$original
+  res$adhoc_wtp_se[i] <- bsres$bootSE
   
   
   cat(paste0("\n\n\n\t\t\t",i,"\n\n\n"))
