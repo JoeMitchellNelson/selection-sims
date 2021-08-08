@@ -6,15 +6,15 @@ source("~/selection-sims/helper_funcs.R")
 
 n_sims <- 200
 
-res <- matrix(data=NA,nrow=n_sims,ncol=26) %>% as.data.frame()
+res <- matrix(data=NA,nrow=n_sims,ncol=28) %>% as.data.frame()
 
 names(res) <- c("seed","LL","message",
                 "b_w",   "mu_x",  "sigma_beta",  "b_cost", "mu_alpha", "sigma_alpha",   "rho", "scale_RP", "scale_SP" ,
                 paste0(c("b_w",   "mu_x",  "sigma_beta",  "b_cost", "mu_alpha", "sigma_alpha",   "rho", "scale_RP", "scale_SP"),"_se"),
-                "maxEigen","uncorrected_wtp", "fullsample_wtp","adhoc_wtp","adhoc_wtp_se")
+                "maxEigen","uncorrected_wtp","uncorrected_wtp_se", "fullsample_wtp","fullsample_wtp_se", "adhoc_wtp","adhoc_wtp_se")
 
 
-for (i in 1:n_sims) {
+for (i in 175:n_sims) {
   
   ### Clear memory
   
@@ -114,19 +114,19 @@ for (i in 1:n_sims) {
                    ifelse(df$alt==4,df$cost4,df$cost5))
     df <- df %>% dplyr::select(ID,alt,choice,x,cost,respond)
     
-    adhoc1 <- glm(respond ~ I(m+noise),data=df2,family="binomial")
-    df2$fittedRP <- adhoc1$fitted.values
-    df2$fittedRP <- df2$fittedRP - mean(df2$fittedRP)
-    
     df2 <- left_join(df,df2,by=c("ID","respond"))
     summary(uncor <- clogit(choice ~ x + cost + strata(ID),data=df[df$respond==1,]))
     summary(cor <- clogit(choice ~ x*m + cost*m + strata(ID),data=df2))
     
     uncor1 <- mvrnorm(n=10000,mu=uncor$coefficients,Sigma=uncor$var) %>% as.data.frame()
-    uncor_wtp <- mean(-1*uncor1$x/uncor1$cost)
+    uncor1$wtp <- -1*uncor1$x/uncor1$cost
+    uncor_wtp <- mean(uncor1$wtp)
+    uncor_se <- sqrt(1/(nrow(uncor1)-1) * sum((uncor1$wtp - uncor_wtp)^2))
     
     cor1 <- mvrnorm(n=10000,mu=cor$coefficients,Sigma=cor$var) %>% as.data.frame()
-    cor_wtp <- mean(-1*cor1$x/cor1$cost)
+    cor1$wtp <- -1*cor1$x/cor1$cost
+    cor_wtp <- mean(cor1$wtp)
+    cor_se <- sqrt(1/(nrow(cor1)-1) * sum((cor1$wtp - cor_wtp)^2))
 
     
    # summary(adhoc2 <- clogit(choice ~ x + cost + x:fittedRP + cost:fittedRP + strata(ID),data=df2[df2$respond==1,]))
@@ -187,7 +187,7 @@ for (i in 1:n_sims) {
   ### Set parameters for generating draws
   apollo_draws = list(
     interDrawsType = "halton",
-    interNDraws    = 500,
+    interNDraws    = 1000,
     interUnifDraws = c(),
     interNormDraws = c("draws_alpha","draws_x"),
     intraDrawsType = "halton",
@@ -299,7 +299,9 @@ for (i in 1:n_sims) {
   res[i,13:21] <- model$robse
   res$maxEigen[i] <- ifelse(!is.null(model$eigValue),model$eigValue,NA)
   res$uncorrected_wtp[i] <- uncor_wtp
+  res$uncorrected_wtp_se[i] <- uncor_se
   res$fullsample_wtp[i] <- cor_wtp
+  res$fullsample_wtp_se[i] <- cor_se
   res$adhoc_wtp[i] <- bsres$original
   res$adhoc_wtp_se[i] <- bsres$bootSE
   
@@ -321,7 +323,8 @@ ggplot(res) +
   geom_density(aes(x=uncorrected_wtp),fill="red",color=NA,alpha=0.5) +
   geom_density(aes(x=adhoc_wtp),fill="blue",color=NA,alpha=0.5) +
   labs(x="WTP Estimate",y="Density") +
-  geom_vline(xintercept=2)
+  geom_vline(xintercept=2) +
+  lims(x=c(1,3))
   
 
 resnd <- res %>% dplyr::filter(maxEigen < 0 & !is.na(mu_x_se))
@@ -329,3 +332,16 @@ resnd <- res %>% dplyr::filter(maxEigen < 0 & !is.na(mu_x_se))
 summary(resnd)
 
 sum(resnd$mu_x - 1.96*resnd$mu_x_se < 2 & resnd$mu_x + 1.96*resnd$mu_x_se > 2)/nrow(resnd)
+
+
+ggplot(resnd) +
+  geom_density(aes(x=fullsample_wtp),color="black",alpha=0.5) +
+  geom_density(aes(x=mu_x),fill="forestgreen",color=NA,alpha=0.5) +
+  geom_vline(xintercept=mean(resnd$mu_x,na.rm=T),color="forestgreen",linetype="dashed") +
+  geom_density(aes(x=uncorrected_wtp),fill="red",color=NA,alpha=0.5) +
+  geom_density(aes(x=adhoc_wtp),fill="blue",color=NA,alpha=0.5) +
+  labs(x="WTP Estimate",y="Density") +
+  geom_vline(xintercept=2) +
+  lims(x=c(1,3))
+
+#write.csv(res,"~/selection-sims/simresults-8-7-2021.csv")
