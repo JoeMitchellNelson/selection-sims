@@ -4,6 +4,14 @@ p_load(pacman,tidyverse,MASS,evd,sampleSelection,foreach,boot,
 
 source("~/selection-sims/helper_funcs.R")
 
+#############################
+# num #  beta21  #  alpha2  #
+#  1  #    2     #     2    #
+#  2  #    2     #    -2    #
+#  3  #   -2     #     2    #
+#  4  #   -2     #    -2    #
+#############################
+
 n_sims <- 200
 
 res <- matrix(data=NA,nrow=n_sims,ncol=28) %>% as.data.frame()
@@ -14,7 +22,7 @@ names(res) <- c("seed","LL","message",
                 "maxEigen","uncorrected_wtp","uncorrected_wtp_se", "fullsample_wtp","fullsample_wtp_se", "adhoc_wtp","adhoc_wtp_se")
 
 
-for (i in 175:n_sims) {
+for (i in 1:n_sims) {
   
   ### Clear memory
   
@@ -72,7 +80,7 @@ for (i in 175:n_sims) {
   
   alpha0 <- 0 # constant term, increase to boost the simulated response rate
   alpha1 <- 2 # coef for w in selection equation
-  alpha2 <- 2 # coef for m in selection equation
+  alpha2 <- -2 # coef for m in selection equation
   
   # calculate indirect utilities for respond (U1) and nonrespond (U2)
   database$U1 <-  alpha0 + alpha1*database$w1 + alpha2*database$m + database$nu1
@@ -116,14 +124,14 @@ for (i in 175:n_sims) {
     
     df2 <- left_join(df,df2,by=c("ID","respond"))
     summary(uncor <- clogit(choice ~ x + cost + strata(ID),data=df[df$respond==1,]))
-    summary(cor <- clogit(choice ~ x*m + cost*m + strata(ID),data=df2))
+    summary(cor <- clogit(choice ~ x*m + cost + strata(ID),data=df2))
     
-    uncor1 <- mvrnorm(n=10000,mu=uncor$coefficients,Sigma=uncor$var) %>% as.data.frame()
+    uncor1 <- mvrnorm(n=1000,mu=uncor$coefficients,Sigma=uncor$var) %>% as.data.frame()
     uncor1$wtp <- -1*uncor1$x/uncor1$cost
     uncor_wtp <- mean(uncor1$wtp)
     uncor_se <- sqrt(1/(nrow(uncor1)-1) * sum((uncor1$wtp - uncor_wtp)^2))
     
-    cor1 <- mvrnorm(n=10000,mu=cor$coefficients,Sigma=cor$var) %>% as.data.frame()
+    cor1 <- mvrnorm(n=1000,mu=cor$coefficients,Sigma=cor$var) %>% as.data.frame()
     cor1$wtp <- -1*cor1$x/cor1$cost
     cor_wtp <- mean(cor1$wtp)
     cor_se <- sqrt(1/(nrow(cor1)-1) * sum((cor1$wtp - cor_wtp)^2))
@@ -187,7 +195,7 @@ for (i in 175:n_sims) {
   ### Set parameters for generating draws
   apollo_draws = list(
     interDrawsType = "halton",
-    interNDraws    = 1000,
+    interNDraws    = 500,
     interUnifDraws = c(),
     interNormDraws = c("draws_alpha","draws_x"),
     intraDrawsType = "halton",
@@ -316,6 +324,11 @@ for (i in 175:n_sims) {
   
 }
 
+#write.csv(res,"~/selection-sims/simresults1-pos-pos.csv")
+#write.csv(res,"~/selection-sims/simresults2-pos-neg.csv")
+#write.csv(res,"~/selection-sims/simresults3-neg-pos.csv")
+#write.csv(res,"~/selection-sims/simresults4-neg-neg.csv")
+
 ggplot(res) +
   geom_density(aes(x=fullsample_wtp),color="black",alpha=0.5) +
   geom_density(aes(x=mu_x),fill="forestgreen",color=NA,alpha=0.5) +
@@ -344,4 +357,3 @@ ggplot(resnd) +
   geom_vline(xintercept=2) +
   lims(x=c(1,3))
 
-#write.csv(res,"~/selection-sims/simresults-8-7-2021.csv")
