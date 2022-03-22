@@ -48,7 +48,7 @@ for (i in 1:n_sims) {
                          x3=rep(runif(n,min=0,max=3),each=2),        # x attribute for first policy option
                          cost3=rep(runif(n,min=0,max=3),each=2),     # cost for first policy option
                          x4=rep(runif(n,min=0,max=3),each=2),        # x att for second policy option
-                         cost4=rep(runif(n,min=0,max=3),each=2),     # cost for second opion
+                         cost4=rep(runif(n,min=0,max=3),each=2),     # cost for second option
                          x5=0,                                       # x = 0 for status quo
                          cost5=0,                                    # cost = 0 for status quo
                          m = rep(rnorm(n),each=2),                   # unobservable, affects participation and policy preference

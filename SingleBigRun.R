@@ -21,7 +21,7 @@ alpha2 <- 2 # coef for m in selection equation
 
 set.seed(123)
 
-n = 200000
+n = 2000
 
 database <- data.frame(ID = rep(1:n,each=2),
                        choice=NA,
